@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -14,7 +14,7 @@ import { useRouter } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 
-export default function ListaPontos() {
+export default function ListaPontos({ isTabletView = false }) {
   const [pontos, setPontos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -77,14 +77,24 @@ export default function ListaPontos() {
   };
 
   const navegarParaPonto = (latitude, longitude) => {
-    router.push({
-      pathname: "/",
-      params: {
-        latitude: latitude.toString(),
-        longitude: longitude.toString(),
-        zoom: true,
-      },
-    });
+    if (isTabletView) {
+      // Se estiver no modo tablet, apenas atualiza os parâmetros
+      router.setParams({
+        newLatitude: latitude.toString(),
+        newLongitude: longitude.toString(),
+        refresh: Date.now().toString(),
+      });
+    } else {
+      // Se estiver no modo mobile, navega para o mapa
+      router.replace({
+        pathname: "/",
+        params: {
+          newLatitude: latitude.toString(),
+          newLongitude: longitude.toString(),
+          refresh: Date.now().toString(),
+        },
+      });
+    }
   };
 
   const renderItem = ({ item }) => (
@@ -134,19 +144,15 @@ export default function ListaPontos() {
     <View style={styles.emptyContainer}>
       <MaterialIcons name="location-off" size={48} color="#ccc" />
       <Text style={styles.emptyText}>Nenhum ponto cadastrado</Text>
-      <TouchableOpacity style={styles.addButton} onPress={() => router.back()}>
-        <MaterialIcons name="add-location" size={20} color="#fff" />
-        <Text style={styles.addButtonText}>Adicionar Ponto</Text>
-      </TouchableOpacity>
-    </View>
-  );
-
-  const ListHeader = () => (
-    <View style={styles.header}>
-      <Text style={styles.headerTitle}>Pontos Salvos</Text>
-      <Text style={styles.pontosCount}>
-        {pontos.length} {pontos.length === 1 ? "ponto" : "pontos"}
-      </Text>
+      {!isTabletView && (
+        <TouchableOpacity
+          style={styles.addButton}
+          onPress={() => router.back()}
+        >
+          <MaterialIcons name="add-location" size={20} color="#fff" />
+          <Text style={styles.addButtonText}>Adicionar Ponto</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 
@@ -158,22 +164,54 @@ export default function ListaPontos() {
     );
   }
 
+  const ListHeader = !isTabletView
+    ? () => (
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Pontos Salvos</Text>
+          <Text style={styles.pontosCount}>
+            {pontos.length} {pontos.length === 1 ? "ponto" : "pontos"}
+          </Text>
+        </View>
+      )
+    : null;
+
+  const content = (
+    <FlatList
+      data={pontos}
+      renderItem={renderItem}
+      keyExtractor={(item) => item.id}
+      ListEmptyComponent={ListEmptyComponent}
+      ListHeaderComponent={ListHeader}
+      contentContainerStyle={[
+        styles.listContent,
+        isTabletView && styles.tabletListContent,
+      ]}
+      refreshing={refreshing}
+      onRefresh={() => {
+        setRefreshing(true);
+        carregarPontos();
+      }}
+    />
+  );
+
+  if (isTabletView) {
+    return (
+      <View style={styles.tabletContainer}>
+        <View style={styles.tabletHeader}>
+          <Text style={styles.tabletHeaderTitle}>Lista de Pontos</Text>
+          <Text style={styles.pontosCount}>
+            {pontos.length} {pontos.length === 1 ? "ponto" : "pontos"}
+          </Text>
+        </View>
+        {content}
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#f9f9f9" />
-      <FlatList
-        data={pontos}
-        renderItem={renderItem}
-        keyExtractor={(item) => item.id}
-        ListEmptyComponent={ListEmptyComponent}
-        ListHeaderComponent={ListHeader}
-        contentContainerStyle={styles.listContent}
-        refreshing={refreshing}
-        onRefresh={() => {
-          setRefreshing(true);
-          carregarPontos();
-        }}
-      />
+      {content}
     </View>
   );
 }
@@ -183,14 +221,29 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#f9f9f9",
   },
-  loader: {
+  tabletContainer: {
     flex: 1,
-    justifyContent: "center",
+    backgroundColor: "#fff",
+  },
+  tabletHeader: {
+    padding: 16,
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
+  },
+  tabletHeaderTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#333",
   },
   listContent: {
     padding: 16,
     paddingBottom: 80,
+  },
+  tabletListContent: {
+    paddingTop: 0,
   },
   header: {
     flexDirection: "row",
@@ -290,5 +343,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
     marginLeft: 8,
+  },
+  loader: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
 });
